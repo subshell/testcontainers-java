@@ -58,12 +58,12 @@ public class MailHogContainerTest {
     }
 
     @Test
-    public void testMailSendSuccessful() throws MessagingException, IOException {
+    public void testMailSendSuccessful() throws MessagingException, IOException, URISyntaxException {
         String message = "Message text";
         String subject = MAIL_HEADER_SUBJECT;
         sendMessage("foo@foo.com", subject, message);
 
-        List<Mail> messages = mailHog.getMessages();
+        List<Mail> messages = mailHog.getAllMessages();
         assertThat(messages.size(), is(1));
         assertThat(messages.get(0).getContent().getBody(), is(message));
         assertThat(messages.get(0).getContent().getHeaders().get(subject).get(0), is(subject));
@@ -83,12 +83,12 @@ public class MailHogContainerTest {
         sendMessage(sender2, subject2, message2);
         sendMessage(sender1, subject1, message1);
 
-        List<Mail> mails = mailHog.getMailItems(sender2);
+        List<Mail> mails = mailHog.getAllMessagesFrom(sender2);
         assertThat(mails.size(), is(1));
         assertThat(mails.get(0).getContent().getBody(), is(message2));
         assertThat(mails.get(0).getContent().getHeaders().get(MAIL_HEADER_SUBJECT).get(0), is(subject2));
 
-        List<Mail> mailItemsSender2 = mailHog.getMailItems(sender1);
+        List<Mail> mailItemsSender2 = mailHog.getAllMessagesFrom(sender1);
         assertThat(mailItemsSender2.size(), is(3));
     }
 
