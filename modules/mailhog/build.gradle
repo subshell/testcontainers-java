@@ -7,4 +7,5 @@ dependencies {
 
     testCompile 'com.sun.mail:javax.mail:1.6.0'
     testCompile 'org.apache.httpcomponents:httpcore:4.4.11'
+    testCompile 'org.hamcrest:hamcrest-library:1.3'
 }

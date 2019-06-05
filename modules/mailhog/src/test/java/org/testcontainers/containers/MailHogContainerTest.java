@@ -1,5 +1,6 @@
 package org.testcontainers.containers;
 
+import static java.time.temporal.ChronoUnit.*;
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
 
@@ -7,7 +8,10 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 
 import javax.mail.Message;
@@ -24,9 +28,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.testcontainers.containers.model.Mail;
 
+import com.google.common.collect.Lists;
+
 public class MailHogContainerTest {
 
-    private static final String MAIL_HEADER_SUBJECT = "Subject";
+    private static final String DEFAULT_RECIPIENT = "foo@foo.com";
 
     @Rule
     public MailHogContainer mailHog = new MailHogContainer();
@@ -59,14 +65,73 @@ public class MailHogContainerTest {
 
     @Test
     public void testMailSendSuccessful() throws MessagingException, IOException, URISyntaxException {
-        String message = "Message text";
-        String subject = MAIL_HEADER_SUBJECT;
-        sendMessage("foo@foo.com", subject, message);
+        String mail = "Mail text";
+        String subject = "my subject";
+        sendMail("foo@foo.com", subject, mail);
 
-        List<Mail> messages = mailHog.getAllMessages();
-        assertThat(messages.size(), is(1));
-        assertThat(messages.get(0).getContent().getBody(), is(message));
-        assertThat(messages.get(0).getContent().getHeaders().get(subject).get(0), is(subject));
+        List<Mail> mails = mailHog.getAllMails();
+        assertThat(mails.size(), is(1));
+        assertThat(mails.get(0).getContent().getBody(), is(mail));
+        assertThat(mails.get(0).getSubject(), is(subject));
+        assertThat(mails.get(0).getDate(), notNullValue());
+    }
+
+    @Test
+    public void testMailDate() throws MessagingException, IOException, URISyntaxException {
+        String mail = "Mail text";
+        String subject = "my subject";
+        ZonedDateTime before = ZonedDateTime.now().truncatedTo(SECONDS);
+        sendMail("foo@foo.com", subject, mail);
+        ZonedDateTime after = ZonedDateTime.now().truncatedTo(SECONDS);
+
+
+        List<Mail> mails = mailHog.getAllMails();
+        ZonedDateTime date = mails.get(0).getDate();
+
+        assertThat(date.isBefore(after) || date.isEqual(after), is(true));
+        assertThat(date.isAfter(before) || date.isEqual(before), is(true));
+    }
+
+    @Test
+    public void testGetNewestMailFrom() throws MessagingException, IOException, URISyntaxException {
+        String mail = "Mail text";
+        String subject1 = "subject1";
+        String subject2 = "subject2";
+        String subject3 = "subject3";
+        String subject4 = "subject4";
+        sendMail("foo@foo.com", subject1, mail);
+        sendMail("foo2@foo.com", subject2, mail);
+        String sender3 = "foo3@foo.com";
+        sendMail(sender3, subject3, mail);
+        sendMail("foo4@foo.com", subject4, mail);
+
+        Optional<Mail> mails = mailHog.getNewestMailFrom(sender3);
+        assertThat(mails.isPresent(), is(true));
+        assertThat(mails.get().getSubject(), is(subject3));
+    }
+
+    @Test
+    public void testTo() throws MessagingException, IOException, URISyntaxException {
+        String mail = "Mail text";
+        String subject = "my subject";
+        String[] additionalRecipients = { "foo1@foo.com", "foo3@foo.com" };
+        sendMail("foo@foo.com", subject, mail, additionalRecipients);
+
+        List<Mail> mails = mailHog.getAllMails();
+
+        assertThat(mails.get(0).getTo(), is(Lists.asList(DEFAULT_RECIPIENT, additionalRecipients)));
+    }
+
+    @Test
+    public void testCC() throws MessagingException, IOException, URISyntaxException {
+        String mail = "Mail text";
+        String subject = "my subject";
+        List<String> cc = Lists.newArrayList("foo1cc@foo.com", "foo3cc@foo.com");
+        sendMail("foo@foo.com", subject, mail, cc);
+
+        List<Mail> mails = mailHog.getAllMails();
+
+        assertThat(mails.get(0).getCC(), is(cc));
     }
 
     @Test
@@ -75,31 +140,48 @@ public class MailHogContainerTest {
         String sender2 = "sender2@foo.com";
         String subject1 = "Test subject1";
         String subject2 = "Test subject2";
-        String message1 = "Test message1";
-        String message2 = "Test message2";
+        String mail1 = "Test mail1";
+        String mail2 = "Test mail2";
 
-        sendMessage(sender1, subject1, message1);
-        sendMessage(sender1, subject1, message1);
-        sendMessage(sender2, subject2, message2);
-        sendMessage(sender1, subject1, message1);
+        sendMail(sender1, subject1, mail1);
+        sendMail(sender1, subject1, mail1);
+        sendMail(sender2, subject2, mail2);
+        sendMail(sender1, subject1, mail1);
 
-        List<Mail> mails = mailHog.getAllMessagesFrom(sender2);
+        List<Mail> mails = mailHog.getAllMailsFrom(sender2);
         assertThat(mails.size(), is(1));
-        assertThat(mails.get(0).getContent().getBody(), is(message2));
-        assertThat(mails.get(0).getContent().getHeaders().get(MAIL_HEADER_SUBJECT).get(0), is(subject2));
+        assertThat(mails.get(0).getContent().getBody(), is(mail2));
+        assertThat(mails.get(0).getSubject(), is(subject2));
 
-        List<Mail> mailItemsSender2 = mailHog.getAllMessagesFrom(sender1);
+        List<Mail> mailItemsSender2 = mailHog.getAllMailsFrom(sender1);
         assertThat(mailItemsSender2.size(), is(3));
     }
 
-    private void sendMessage(String sender, String subject, String message) throws MessagingException {
-        Message mimeMessage = new MimeMessage(session);
-        mimeMessage.setRecipient(Message.RecipientType.TO, new InternetAddress("foo@foo.com"));
-        mimeMessage.setFrom(new InternetAddress(sender));
-        mimeMessage.setSubject(subject);
-        mimeMessage.setText(message);
+    private void sendMail(String sender, String subject, String mail, List<String> cc) throws MessagingException {
+        sendMail(sender, subject, mail, cc, new String[0]);
+    }
 
-        Transport.send(mimeMessage);
+    private void sendMail(String sender, String subject, String mail, List<String> cc, String... additionalRecipients) throws MessagingException {
+        Message mimeMail = new MimeMessage(session);
+        mimeMail.setRecipient(Message.RecipientType.TO, new InternetAddress(DEFAULT_RECIPIENT));
+
+        for (String recipient : additionalRecipients) {
+            mimeMail.addRecipient(Message.RecipientType.TO, new InternetAddress(recipient));
+        }
+
+        for (String ccReceiver : cc) {
+            mimeMail.addRecipient(Message.RecipientType.CC, new InternetAddress(ccReceiver));
+        }
+
+        mimeMail.setFrom(new InternetAddress(sender));
+        mimeMail.setSubject(subject);
+        mimeMail.setText(mail);
+
+        Transport.send(mimeMail);
+    }
+
+    private void sendMail(String sender, String subject, String mail, String... additionalRecipients) throws MessagingException {
+        sendMail(sender, subject, mail, new ArrayList<>(), additionalRecipients);
     }
 
 }
