@@ -19,6 +19,9 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
+/**
+ * This model class represents an email.
+ */
 @Getter
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -44,11 +47,19 @@ public class Mail {
         private String body;
     }
 
+    /**
+     * Returns the header with the name "Date".
+     * @return the date
+     */
     public ZonedDateTime getDate() {
         List<String> date = content.getHeaders().get(MAIL_HEADER_DATE);
         return ZonedDateTime.parse(date.get(0).replaceFirst(" \\(.+\\)$", StringUtils.EMPTY), DateTimeFormatter.RFC_1123_DATE_TIME);
     }
 
+    /**
+     * Returns the subject
+     * @return the subject
+     */
     public String getSubject() {
         List<String> subjectList = content.getHeaders().get(MAIL_HEADER_SUBJECT);
         if (subjectList != null && !subjectList.isEmpty()) {
@@ -58,16 +69,31 @@ public class Mail {
         }
     }
 
+    /**
+     * Returns the receivers of the mail (header name To)
+     * @return the receivers
+     */
     public List<String> getTo() {
-        return getHeaderProperty(MAIL_HEADER_TO);
+        return getHeader(MAIL_HEADER_TO);
     }
 
+    /**
+     * Returns the cc receivers of the mail (header name Cc)
+     * @return the cc receivers
+     */
     public List<String> getCC() {
-        return getHeaderProperty(MAIL_HEADER_CC);
+        return getHeader(MAIL_HEADER_CC);
     }
 
-    public List<String> getHeaderProperty(String property) {
-        List<String> header = content.getHeaders().get(property);
+    /**
+     * Returns the header with given header names. If there are multiple entries with the same header name (i.e.
+     * Received), each entry will result in an entry of the list. In case of multiple entries in one header name (i.e.
+     * To or Cc) separated by comma, the entry will be split using the separator ",".
+     * @param headerName
+     * @return the list of headers
+     */
+    public List<String> getHeader(String headerName) {
+        List<String> header = content.getHeaders().get(headerName);
         if (header != null && header.size() == 1) {
             return Lists.newArrayList(header.get(0).split(", "));
         } else if(header != null && header.size() > 1) {

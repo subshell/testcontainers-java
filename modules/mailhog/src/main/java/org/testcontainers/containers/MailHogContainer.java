@@ -2,9 +2,7 @@ package org.testcontainers.containers;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,7 +13,6 @@ import org.testcontainers.containers.model.Mail;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Lists;
 
 /**
  * Testcontainer for MailHog (https://github.com/mailhog/MailHog) which is an email testing tool.
@@ -109,8 +106,7 @@ public class MailHogContainer extends GenericContainer<MailHogContainer> {
      * @throws URISyntaxException
      */
     public List<Mail> getMails(int limit) throws IOException, URISyntaxException {
-        List<BasicNameValuePair> parameter = Collections.singletonList(new BasicNameValuePair(MAILHOG_QUERY_PARAMETER_LIMIT, Integer.toString(limit)));
-        return getMailsWithParameters(parameter);
+        return getMailsWithParameters(new BasicNameValuePair(MAILHOG_QUERY_PARAMETER_LIMIT, Integer.toString(limit)));
     }
 
     /**
@@ -122,12 +118,11 @@ public class MailHogContainer extends GenericContainer<MailHogContainer> {
      * @throws IOException
      */
     public List<Mail> getMailsFrom(String sender, int limit) throws URISyntaxException, IOException {
-        ArrayList<BasicNameValuePair> query = Lists.newArrayList(
+        return getMailsWithParameters(
             new BasicNameValuePair(MAILHOG_QUERY_PARAMETER_KIND, "from"),
             new BasicNameValuePair(MAILHOG_QUERY_PARAMETER_QUERY, sender),
-            new BasicNameValuePair(MAILHOG_QUERY_PARAMETER_LIMIT, Integer.toString(limit)));
-
-        return getMailsWithParameters(query);
+            new BasicNameValuePair(MAILHOG_QUERY_PARAMETER_LIMIT, Integer.toString(limit))
+        );
     }
 
     /**
@@ -138,12 +133,7 @@ public class MailHogContainer extends GenericContainer<MailHogContainer> {
      * @throws IOException
      */
     public Optional<Mail> getNewestMailFrom(String sender) throws URISyntaxException, IOException {
-        List<Mail> mails = getMailsFrom(sender, 1);
-        if (!mails.isEmpty()) {
-            return Optional.of(mails.get(0));
-        } else {
-            return Optional.empty();
-        }
+        return getMailsFrom(sender, 1).stream().findFirst();
     }
 
     /**
@@ -165,14 +155,14 @@ public class MailHogContainer extends GenericContainer<MailHogContainer> {
      * @throws URISyntaxException
      * @throws IOException
      */
-    public List<Mail> getMailsWithParameters(List<? extends NameValuePair> parameters) throws URISyntaxException, IOException {
+    public List<Mail> getMailsWithParameters(NameValuePair... parameters) throws URISyntaxException, IOException {
         ObjectMapper mapper = new ObjectMapper();
 
         URIBuilder uri = new URIBuilder(getHttpEndpoint());
 
-        boolean isSearch = parameters.stream()
+        boolean isSearch = Arrays.stream(parameters)
             .map(NameValuePair::getName)
-            .anyMatch(name -> Arrays.asList("kind", MAILHOG_QUERY_PARAMETER_QUERY).contains(name));
+            .anyMatch(name -> Arrays.asList(MAILHOG_QUERY_PARAMETER_KIND, MAILHOG_QUERY_PARAMETER_QUERY).contains(name));
 
         if (isSearch) {
             uri.setPath("/api/v2/search");
@@ -180,7 +170,7 @@ public class MailHogContainer extends GenericContainer<MailHogContainer> {
             uri.setPath("/api/v2/messages");
         }
 
-        uri.setParameters(parameters.toArray(new NameValuePair[]{}));
+        uri.setParameters(parameters);
 
         JsonNode jsonNode = mapper.readTree(uri.build().toURL());
         return Arrays.asList(mapper.treeToValue(jsonNode.get("items"), Mail[].class));

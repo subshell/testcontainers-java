@@ -32,7 +32,8 @@ import com.google.common.collect.Lists;
 
 public class MailHogContainerTest {
 
-    private static final String DEFAULT_RECIPIENT = "foo@foo.com";
+    private static final String DEFAULT_RECIPIENT = "fooRecipient@foo.com";
+    private static final String DEFAULT_SENDER = "fooSender@foo.com";
 
     @Rule
     public MailHogContainer mailHog = new MailHogContainer();
@@ -67,7 +68,7 @@ public class MailHogContainerTest {
     public void testMailSendSuccessful() throws MessagingException, IOException, URISyntaxException {
         String mail = "Mail text";
         String subject = "my subject";
-        sendMail("foo@foo.com", subject, mail);
+        sendMail(DEFAULT_SENDER, subject, mail);
 
         List<Mail> mails = mailHog.getAllMails();
         assertThat(mails.size(), is(1));
@@ -81,7 +82,7 @@ public class MailHogContainerTest {
         String mail = "Mail text";
         String subject = "my subject";
         ZonedDateTime before = ZonedDateTime.now().truncatedTo(SECONDS);
-        sendMail("foo@foo.com", subject, mail);
+        sendMail(DEFAULT_SENDER, subject, mail);
         ZonedDateTime after = ZonedDateTime.now().truncatedTo(SECONDS);
 
 
@@ -98,10 +99,12 @@ public class MailHogContainerTest {
         String subject1 = "subject1";
         String subject2 = "subject2";
         String subject3 = "subject3";
+        String subject31 = "subject31";
         String subject4 = "subject4";
-        sendMail("foo@foo.com", subject1, mail);
+        sendMail(DEFAULT_SENDER, subject1, mail);
         sendMail("foo2@foo.com", subject2, mail);
         String sender3 = "foo3@foo.com";
+        sendMail(sender3, subject31, mail);
         sendMail(sender3, subject3, mail);
         sendMail("foo4@foo.com", subject4, mail);
 
@@ -114,8 +117,8 @@ public class MailHogContainerTest {
     public void testTo() throws MessagingException, IOException, URISyntaxException {
         String mail = "Mail text";
         String subject = "my subject";
-        String[] additionalRecipients = { "foo1@foo.com", "foo3@foo.com" };
-        sendMail("foo@foo.com", subject, mail, additionalRecipients);
+        String[] additionalRecipients = { "foo1@foo.com", "Foo foobar <foo3@foo.com>" };
+        sendMail(DEFAULT_SENDER, subject, mail, additionalRecipients);
 
         List<Mail> mails = mailHog.getAllMails();
 
@@ -127,7 +130,7 @@ public class MailHogContainerTest {
         String mail = "Mail text";
         String subject = "my subject";
         List<String> cc = Lists.newArrayList("foo1cc@foo.com", "foo3cc@foo.com");
-        sendMail("foo@foo.com", subject, mail, cc);
+        sendMail(subject, mail, cc);
 
         List<Mail> mails = mailHog.getAllMails();
 
@@ -157,8 +160,28 @@ public class MailHogContainerTest {
         assertThat(mailItemsSender2.size(), is(3));
     }
 
-    private void sendMail(String sender, String subject, String mail, List<String> cc) throws MessagingException {
-        sendMail(sender, subject, mail, cc, new String[0]);
+    @Test
+    public void testGetMailFromSenderWithName() throws MessagingException, IOException, URISyntaxException {
+        String sender1 = "sender1@foo.com";
+        String sender2 = "Foobar Foo <sender2@foo.com>";
+        String subject1 = "Test subject1";
+        String subject2 = "Test subject2";
+        String mail1 = "Test mail1";
+        String mail2 = "Test mail2";
+
+        sendMail(sender1, subject1, mail1);
+        sendMail(sender1, subject1, mail1);
+        sendMail(sender2, subject2, mail2);
+        sendMail(sender1, subject1, mail1);
+
+        List<Mail> mails = mailHog.getAllMailsFrom("sender2@foo.com");
+        assertThat(mails.size(), is(1));
+        assertThat(mails.get(0).getContent().getBody(), is(mail2));
+        assertThat(mails.get(0).getSubject(), is(subject2));
+    }
+
+    private void sendMail(String subject, String mail, List<String> cc) throws MessagingException {
+        sendMail(DEFAULT_SENDER, subject, mail, cc);
     }
 
     private void sendMail(String sender, String subject, String mail, List<String> cc, String... additionalRecipients) throws MessagingException {
