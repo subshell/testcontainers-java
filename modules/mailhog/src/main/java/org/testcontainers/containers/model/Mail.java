@@ -5,14 +5,15 @@ import static org.testcontainers.containers.MailHogContainer.*;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.collect.Lists;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -86,16 +87,18 @@ public class Mail {
     }
 
     /**
-     * Returns the header with given header names. If there are multiple entries with the same header name (i.e.
+     * Returns the header with given header name. If there are multiple entries with the same header name (i.e.
      * Received), each entry will result in an entry of the list. In case of multiple entries in one header name (i.e.
-     * To or Cc) separated by comma, the entry will be split using the separator ",".
+     * To or Cc) separated by comma, the entry will be split using the separator "," and trimmed afterwards.
      * @param headerName
      * @return the list of headers
      */
     public List<String> getHeader(String headerName) {
         List<String> header = content.getHeaders().get(headerName);
         if (header != null && header.size() == 1) {
-            return Lists.newArrayList(header.get(0).split(", "));
+            return Arrays.stream(header.get(0).split(","))
+                .map(StringUtils::trim)
+                .collect(Collectors.toList());
         } else if(header != null && header.size() > 1) {
             return header;
         } else {
